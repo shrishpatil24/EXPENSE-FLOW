@@ -1,0 +1,135 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { Wallet, LogIn, ShieldCheck, Zap } from "lucide-react";
+
+export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const router = useRouter();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50/50">
+      <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 overflow-hidden border border-slate-100">
+        
+        {/* Left Side: Brand Visuals */}
+        <div className="hidden lg:flex flex-col justify-between p-12 bg-slate-900 text-white relative overflow-hidden">
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom_right,rgba(37,99,235,0.15),transparent)]" />
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-primary/20 rounded-full blur-[100px]" />
+          
+          <Link href="/" className="flex items-center gap-2 relative z-10">
+            <div className="w-10 h-10 primary-gradient rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+              <Wallet className="text-white w-6 h-6" />
+            </div>
+            <span className="text-2xl font-black font-heading tracking-tighter">EXPENSEFLOW</span>
+          </Link>
+
+          <div className="relative z-10 space-y-6">
+            <h2 className="text-5xl font-black font-heading leading-tight">
+              Maintain your<br />
+              <span className="text-primary">Financial Lead.</span>
+            </h2>
+            <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-sm">
+              Connect with your roommates, split shared costs instantly, and keep your balances transparent.
+            </p>
+          </div>
+
+          <div className="relative z-10 flex items-center gap-2 text-xs text-slate-500 font-bold uppercase tracking-widest">
+            <ShieldCheck className="w-4 h-4" />
+            Institutional Standard Security
+          </div>
+        </div>
+
+        {/* Right Side: Form */}
+        <div className="p-8 lg:p-16 flex flex-col justify-center bg-white">
+          <div className="max-w-sm w-full mx-auto space-y-10">
+            <div className="space-y-3 text-center lg:text-left">
+              <h1 className="text-4xl font-black font-heading text-slate-900 leading-tight">Welcome Back</h1>
+              <p className="text-slate-500 font-medium">Please enter your credentials to access your dashboard.</p>
+            </div>
+
+            <div className="grid gap-6">
+              <Button variant="secondary" className="h-14 w-full flex items-center justify-center gap-3 bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 font-bold shadow-none rounded-2xl">
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                Sign in with Google
+              </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100"></span></div>
+                <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest text-slate-400">
+                  <span className="bg-white px-3">Secure Login</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+                  <Input type="email" placeholder="student@college.edu" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-14 bg-slate-50/50 border-slate-200 focus:bg-white rounded-2xl" />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Password</label>
+                    <Link href="#" className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline">Forgot?</Link>
+                  </div>
+                  <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="h-14 bg-slate-50/50 border-slate-200 focus:bg-white rounded-2xl" />
+                </div>
+
+                {error && (
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-4 rounded-2xl bg-red-50 border border-red-100 text-red-600 text-[11px] font-bold shadow-sm">
+                    {error}
+                  </motion.div>
+                )}
+
+                <Button type="submit" className="w-full h-16 primary-gradient text-xl rounded-2xl shadow-xl shadow-primary/20" disabled={loading}>
+                  {loading ? "Authorizing..." : "Sign In"}
+                </Button>
+              </form>
+            </div>
+
+            <p className="text-center text-slate-500 text-sm font-medium pt-4">
+              New to the platform?{" "}
+              <Link href="/auth/register" className="text-primary font-bold hover:underline underline-offset-4 decoration-2 transition-all">Create Account</Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
