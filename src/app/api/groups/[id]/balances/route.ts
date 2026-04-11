@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Group from "@/models/Group";
 import Expense from "@/models/Expense";
+import Settlement from "@/models/Settlement";
 import { SettlementEngine } from "@/lib/settlementEngine";
 
 export async function GET(
@@ -18,10 +19,11 @@ export async function GET(
     }
 
     const expenses = await Expense.find({ groupId });
+    const settlements = await Settlement.find({ groupId });
     const memberIds = group.members.map((m: any) => m._id.toString());
 
     // Calculate simplified debts
-    const simplifiedDebts = SettlementEngine.simplifyDebts(expenses, memberIds);
+    const simplifiedDebts = SettlementEngine.simplifyDebts(expenses, settlements, memberIds);
 
     // Also calculate individual summary balances
     const individualBalances = memberIds.map((id: string) => {
@@ -30,6 +32,12 @@ export async function GET(
             if (e.paidBy.toString() === id) net += e.amount;
             const mySplit = e.splits.find((s: any) => s.userId.toString() === id);
             if (mySplit) net -= mySplit.amount;
+        });
+
+        // Add settlements
+        settlements.forEach(s => {
+            if (s.fromId.toString() === id) net += s.amount;
+            if (s.toId.toString() === id) net -= s.amount;
         });
         return {
             userId: id,

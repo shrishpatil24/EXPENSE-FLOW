@@ -106,7 +106,7 @@ export default function LoginPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center px-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Password</label>
-                    <Link href="#" className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline">Forgot?</Link>
+                    <Link href="/auth/forgot-password" className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline">Forgot?</Link>
                   </div>
                   <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="h-14 bg-slate-50/50 border-slate-200 focus:bg-white rounded-2xl" />
                 </div>

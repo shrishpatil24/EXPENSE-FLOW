@@ -1,4 +1,5 @@
 import { IExpense } from "@/models/Expense";
+import { ISettlement } from "@/models/Settlement";
 
 export interface SimplifiedDebt {
   from: string;
@@ -9,11 +10,11 @@ export interface SimplifiedDebt {
 export class SettlementEngine {
   /**
    * Simplifies debts within a group to minimize the number of transactions.
-   * @param expenses - List of all expenses in the group
+   * @param settlements - List of all settlements in the group
    * @param memberIds - List of all user IDs in the group
    * @returns Array of simplified transaction suggestions
    */
-  static simplifyDebts(expenses: IExpense[], memberIds: string[]): SimplifiedDebt[] {
+  static simplifyDebts(expenses: IExpense[], settlements: ISettlement[], memberIds: string[]): SimplifiedDebt[] {
     const balances: Record<string, number> = {};
 
     // Initialize balances
@@ -29,6 +30,14 @@ export class SettlementEngine {
         const debtorId = split.userId.toString();
         balances[debtorId] -= split.amount;
       });
+    });
+
+    // Incorporate Settlements (Payments)
+    settlements.forEach((settlement) => {
+        const from = settlement.fromId.toString();
+        const to = settlement.toId.toString();
+        balances[from] += settlement.amount; // Sender's liability decreases (credit)
+        balances[to] -= settlement.amount;   // Receiver's asset decreases (debit)
     });
 
     // Filter out people with essentially 0 balance

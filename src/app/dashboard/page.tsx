@@ -9,19 +9,31 @@ import { Plus, Users, ArrowUpRight, ArrowDownLeft, ChevronRight } from "lucide-r
 import Link from "next/link";
 
 export default function Dashboard() {
-  const [groups, setGroups] = useState([]);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [debts, setDebts] = useState<any[]>([]);
+  const [credits, setCredits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   
-  const fetchGroups = async () => {
+  const fetchData = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/groups", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setGroups(data.groups || []);
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      const [gRes, dRes] = await Promise.all([
+          fetch("/api/groups", { headers }),
+          fetch("/api/user/debts", { headers })
+      ]);
+
+      const [gData, dData] = await Promise.all([
+          gRes.json(),
+          dRes.json()
+      ]);
+
+      setGroups(gData.groups || []);
+      setDebts(dData.debts || []);
+      setCredits(dData.credits || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -44,7 +56,7 @@ export default function Dashboard() {
       if (res.ok) {
         setNewGroupName("");
         setShowCreate(false);
-        fetchGroups();
+        fetchData();
       }
     } catch (err) {
       console.error(err);
@@ -52,14 +64,36 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchGroups();
+    fetchData();
   }, []);
+
+  const totalPayable = debts.reduce((acc, d) => acc + d.amount, 0);
+  const totalReceivable = credits.reduce((acc, c) => acc + c.amount, 0);
 
   return (
     <div className="min-h-screen flex flex-col">
       <DashboardNav />
 
       <main className="flex-1 max-w-7xl mx-auto w-full p-6 space-y-8">
+        {/* Urgent Debt Alert Banner */}
+        {debts.length > 0 && (
+            <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-50 border border-red-100 p-4 rounded-3xl flex items-center justify-between shadow-sm titanium-border"
+            >
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center">
+                        <ArrowUpRight className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-bold text-red-900">Immediate Action Required</h4>
+                        <p className="text-xs text-red-700 font-medium">You have outstanding dues of <span className="font-black text-red-900">₹{totalPayable.toFixed(2)}</span>.</p>
+                    </div>
+                </div>
+            </motion.div>
+        )}
+
         {/* Header Section */}
         <section className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div>
@@ -79,16 +113,51 @@ export default function Dashboard() {
               <ArrowUpRight className="w-32 h-32 text-primary" />
             </div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Total Receivable</p>
-            <h3 className="text-4xl font-black font-heading text-primary">$0.00</h3>
+            <h3 className="text-4xl font-black font-heading text-primary">₹{totalReceivable.toFixed(2)}</h3>
           </div>
           <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm transition-all hover:shadow-md relative overflow-hidden group">
              <div className="absolute top-0 right-0 p-4 opacity-[0.03] grayscale transition-all group-hover:scale-110">
               <ArrowDownLeft className="w-32 h-32 text-slate-900" />
             </div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Total Payable</p>
-            <h3 className="text-4xl font-black font-heading text-slate-900">$0.00</h3>
+            <h3 className="text-4xl font-black font-heading text-slate-900">₹{totalPayable.toFixed(2)}</h3>
           </div>
         </section>
+
+        {/* Actionable Alerts (Requested Narrative Style) */}
+        {debts.length > 0 && (
+            <section className="space-y-4">
+                <h2 className="text-xl font-bold font-heading text-slate-900 ml-2">Personal Notifications</h2>
+                <div className="grid grid-cols-1 gap-3">
+                    {debts.map((debt, i) => (
+                        <motion.div 
+                            key={i}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.1 }}
+                            className="bg-primary/5 border border-primary/10 p-5 rounded-3xl flex items-center justify-between"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+                                    <ArrowUpRight className="w-5 h-5 text-primary" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-slate-900">
+                                        Member <span className="font-bold text-primary">{debt.toName}</span> created group <span className="font-bold">{debt.groupName}</span>.
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                        You have to pay them <span className="font-black text-slate-900">₹{debt.amount}</span>.
+                                    </p>
+                                </div>
+                            </div>
+                            <Link href={`/dashboard/groups/${debt.groupId}`}>
+                                <Button size="sm" variant="secondary" className="rounded-xl h-10 px-6">Settle Up</Button>
+                            </Link>
+                        </motion.div>
+                    ))}
+                </div>
+            </section>
+        )}
 
         {/* Groups List */}
         <section className="space-y-4">

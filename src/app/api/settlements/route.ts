@@ -1,0 +1,59 @@
+import { NextResponse } from "next/server";
+import dbConnect from "@/lib/db";
+import Settlement from "@/models/Settlement";
+import { verifyToken } from "@/lib/auth";
+
+export async function POST(req: Request) {
+  try {
+    await dbConnect();
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authHeader.split(" ")[1];
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
+    const { fromId, toId, groupId, amount } = await req.json();
+
+    if (!fromId || !toId || !groupId || !amount) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    const settlement = await Settlement.create({
+      fromId,
+      toId,
+      groupId,
+      amount,
+      status: "COMPLETED"
+    });
+
+    return NextResponse.json({ message: "Settlement recorded", settlement }, { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function GET(req: Request) {
+  try {
+    await dbConnect();
+    const { searchParams } = new URL(req.url);
+    const groupId = searchParams.get("groupId");
+
+    if (!groupId) {
+      return NextResponse.json({ error: "Group ID is required" }, { status: 400 });
+    }
+
+    const settlements = await Settlement.find({ groupId })
+      .populate("fromId", "name")
+      .populate("toId", "name")
+      .sort({ date: -1 });
+
+    return NextResponse.json({ settlements }, { status: 200 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

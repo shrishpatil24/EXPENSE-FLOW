@@ -31,23 +31,34 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: "Group not found" }, { status: 404 });
     }
 
-    // Create ghost user
-    // Note: We use a unique dummy email if none provided to satisfy schema
-    const dummyEmail = email || `ghost_${Date.now()}_${Math.random().toString(36).substring(7)}@expenseflow.local`;
-    
-    const ghostUser = await User.create({
-      name,
-      email: dummyEmail,
-      isGhost: true,
-    });
+    // 1. Try to find user strictly by email if provided, otherwise by exact name
+    let targetUser = null;
+    if (email) {
+        targetUser = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, "i") } });
+    }
+    if (!targetUser) {
+        targetUser = await User.findOne({ name: { $regex: new RegExp(`^${name}$`, "i") }, isGhost: true });
+    }
 
-    // Add to group
-    group.members.push(ghostUser._id);
-    await group.save();
+    if (!targetUser) {
+        // 2. Create ghost user if not found
+        const dummyEmail = email || `ghost_${Date.now()}@expenseflow.local`;
+        targetUser = await User.create({
+          name,
+          email: dummyEmail,
+          isGhost: true,
+        });
+    }
+
+    // 3. Add to group if not already a member
+    if (!group.members.includes(targetUser._id)) {
+        group.members.push(targetUser._id);
+        await group.save();
+    }
 
     return NextResponse.json({ 
-      message: "Member added successfully", 
-      member: { id: ghostUser._id, name: ghostUser.name, isGhost: true } 
+      message: targetUser.isGhost ? "Ghost member created" : "Registered user linked to group", 
+      member: { id: targetUser._id, name: targetUser.name, isGhost: targetUser.isGhost } 
     }, { status: 201 });
 
   } catch (error: any) {

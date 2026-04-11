@@ -26,9 +26,12 @@ export default function GroupDetail() {
   // Modals
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showSettleModal, setShowSettleModal] = useState(false);
   
   const [feedback, setFeedback] = useState({ type: "", message: "" });
   const [newMemberName, setNewMemberName] = useState("");
+  const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [settleData, setSettleData] = useState({ toId: "", amount: "" });
   const [expenseData, setExpenseData] = useState({
     description: "",
     amount: "",
@@ -51,14 +54,31 @@ export default function GroupDetail() {
       const currentGroup = gData.groups?.find((g: any) => g._id === groupId);
       setGroup(currentGroup);
 
-      // Fetch Expenses
-      const eRes = await fetch(`/api/expenses?groupId=${groupId}`, { headers });
-      const eData = await eRes.json();
-      setExpenses(eData.expenses || []);
+      // Fetch Expenses & Settlements
+      const [eRes, sRes, bRes] = await Promise.all([
+        fetch(`/api/expenses?groupId=${groupId}`, { headers }),
+        fetch(`/api/settlements?groupId=${groupId}`, { headers }),
+        fetch(`/api/groups/${groupId}/balances`, { headers })
+      ]);
+      
+      const [eData, sData, bData] = await Promise.all([
+        eRes.json(),
+        sRes.json(),
+        bRes.json()
+      ]);
 
-      // Fetch Balances
-      const bRes = await fetch(`/api/groups/${groupId}/balances`, { headers });
-      const bData = await bRes.json();
+      // Combine expenses and settlements for a unified ledger
+      const unifiedTransactions = [
+        ...(eData.expenses || []).map((e: any) => ({ ...e, type: "EXPENSE" })),
+        ...(sData.settlements || []).map((s: any) => ({ 
+            ...s, 
+            type: "SETTLEMENT", 
+            description: "Payment Settlement",
+            paidBy: s.fromId // For consistent mapping in JS
+        }))
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      setExpenses(unifiedTransactions);
       setBalances(bData);
 
       // Set default payor
@@ -83,14 +103,15 @@ export default function GroupDetail() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}` 
         },
-        body: JSON.stringify({ name: newMemberName }),
+        body: JSON.stringify({ name: newMemberName, email: newMemberEmail }),
       });
       
       const data = await res.json();
       
       if (res.ok) {
-        setFeedback({ type: "success", message: "Member added!" });
+        setFeedback({ type: "success", message: "Member invited!" });
         setNewMemberName("");
+        setNewMemberEmail("");
         setTimeout(() => {
             setShowMemberModal(false);
             setFeedback({ type: "", message: "" });
@@ -125,6 +146,33 @@ export default function GroupDetail() {
       if (res.ok) {
         setExpenseData({ description: "", amount: "", paidBy: "", splitType: "EQUAL" });
         setShowExpenseModal(false);
+        fetchData();
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSettleUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem("token");
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      
+      const res = await fetch("/api/settlements", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          fromId: storedUser.id,
+          toId: settleData.toId,
+          groupId,
+          amount: parseFloat(settleData.amount)
+        }),
+      });
+      if (res.ok) {
+        setSettleData({ toId: "", amount: "" });
+        setShowSettleModal(false);
         fetchData();
       }
     } catch (err) { console.error(err); }
@@ -179,6 +227,9 @@ export default function GroupDetail() {
             <Button variant="secondary" onClick={() => setShowMemberModal(true)}>
               <UserPlus className="w-4 h-4 mr-2" /> Invite Participant
             </Button>
+            <Button variant="secondary" onClick={() => setShowSettleModal(true)}>
+              <DollarSign className="w-4 h-4 mr-2" /> Settle Up
+            </Button>
             <Button onClick={() => setShowExpenseModal(true)}>
               <Plus className="w-4 h-4 mr-2" /> Add Transaction
             </Button>
@@ -201,7 +252,7 @@ export default function GroupDetail() {
                   <div key={bal.userId} className="flex items-center justify-between">
                     <span className="text-slate-600 font-medium">{bal.name}</span>
                     <span className={`font-bold ${bal.netBalance >= 0 ? "text-primary" : "text-slate-900 opacity-60"}`}>
-                      {bal.netBalance >= 0 ? `+ $${bal.netBalance}` : `- $${Math.abs(bal.netBalance)}`}
+                      {bal.netBalance >= 0 ? `+ ₹${bal.netBalance}` : `- ₹${Math.abs(bal.netBalance)}`}
                     </span>
                   </div>
                 ))}
@@ -220,7 +271,7 @@ export default function GroupDetail() {
                         return (
                             <div key={i} className="p-4 bg-slate-50 rounded-2xl text-xs space-y-1">
                                 <p className="text-slate-500 font-medium"><span className="text-slate-900 font-bold">{fromName}</span> owes <span className="text-slate-900 font-bold">{toName}</span></p>
-                                <p className="text-primary text-lg font-black tracking-tighter">$ {debt.amount}</p>
+                                <p className="text-primary text-lg font-black tracking-tighter">₹ {debt.amount}</p>
                             </div>
                         );
                     })
@@ -248,7 +299,7 @@ export default function GroupDetail() {
                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter ml-1">Total Bill Amount</label>
                   <Input 
                     type="number" 
-                    placeholder="$ 0.00" 
+                    placeholder="₹ 0.00" 
                     value={calcAmount} 
                     onChange={(e) => setCalcAmount(e.target.value)}
                     className="h-10 text-sm"
@@ -269,7 +320,7 @@ export default function GroupDetail() {
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="pt-4 border-t border-slate-50">
                     <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Each Person Pays</p>
                     <p className="text-3xl font-black font-heading text-primary">
-                      $ {(parseFloat(calcAmount) / parseInt(calcPeople)).toFixed(2)}
+                      ₹ {(parseFloat(calcAmount) / parseInt(calcPeople)).toFixed(2)}
                     </p>
                   </motion.div>
                 )}
@@ -290,25 +341,39 @@ export default function GroupDetail() {
                     className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100">
-                        <Receipt className="w-6 h-6 text-slate-400 group-hover:text-primary transition-colors" />
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${expense.type === 'SETTLEMENT' ? 'bg-green-50 border-green-100' : 'bg-slate-50 border-slate-100'}`}>
+                        {expense.type === 'SETTLEMENT' ? (
+                            <CheckCircle2 className="w-6 h-6 text-green-500" />
+                        ) : (
+                            <Receipt className="w-6 h-6 text-slate-400 group-hover:text-primary transition-colors" />
+                        )}
                       </div>
                       <div>
                         <h4 className="text-slate-900 font-bold">{expense.description}</h4>
-                        <p className="text-[10px] text-slate-400">Recorded by <span className="text-slate-600 font-medium">{expense.paidBy.name}</span></p>
+                        <p className="text-[10px] text-slate-400">
+                            {expense.type === 'SETTLEMENT' ? (
+                                <>Sent by <span className="text-slate-600 font-medium">{expense.fromId.name}</span></>
+                            ) : (
+                                <>Recorded by <span className="text-slate-600 font-medium">{expense.paidBy.name}</span></>
+                            )}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-6">
                       <div className="text-right">
-                        <p className="text-xl font-black font-heading text-slate-900">$ {expense.amount}</p>
+                        <p className={`text-xl font-black font-heading ${expense.type === 'SETTLEMENT' ? 'text-green-600' : 'text-slate-900'}`}>
+                            {expense.type === 'SETTLEMENT' ? '' : '₹ '} {expense.amount}
+                        </p>
                         <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400">{new Date(expense.date).toLocaleDateString()}</p>
                       </div>
-                      <button 
-                         onClick={() => handleDeleteExpense(expense._id)}
-                         className="p-2 rounded-xl bg-slate-50 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {expense.type === 'EXPENSE' && (
+                        <button 
+                            onClick={() => handleDeleteExpense(expense._id)}
+                            className="p-2 rounded-xl bg-slate-50 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 ))
@@ -328,17 +393,24 @@ export default function GroupDetail() {
         {showMemberModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="glass-card w-full max-w-sm p-10 rounded-3xl titanium-border">
-              <h2 className="text-2xl font-black font-heading text-slate-900 mb-6">Add Member</h2>
+              <h2 className="text-2xl font-black font-heading text-slate-900 mb-6">Invite Member</h2>
               <form onSubmit={handleAddMember} className="space-y-4">
                 {feedback.message && (
                   <div className={`p-3 rounded-xl text-xs font-bold ${feedback.type === 'success' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
                     {feedback.message}
                   </div>
                 )}
-                <Input placeholder="Enter name..." value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} autoFocus required />
-                <div className="flex gap-3 pt-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Member Name</label>
+                  <Input placeholder="E.g. Shraa" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} autoFocus required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Email Address</label>
+                  <Input type="email" placeholder="shraa@example.com" value={newMemberEmail} onChange={(e) => setNewMemberEmail(e.target.value)} required />
+                </div>
+                <div className="flex gap-3 pt-4 border-t border-slate-100/10">
                    <Button type="button" variant="secondary" onClick={() => setShowMemberModal(false)} className="flex-1">Cancel</Button>
-                   <Button type="submit" className="flex-1">Add Member</Button>
+                   <Button type="submit" className="flex-1">Send Invite</Button>
                 </div>
               </form>
             </motion.div>
@@ -355,7 +427,7 @@ export default function GroupDetail() {
                   <Input placeholder="Dinner, Taxi, etc." value={expenseData.description} onChange={(e) => setExpenseData({...expenseData, description: e.target.value})} required />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1 text-[10px]">Amount ($)</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1 text-[10px]">Amount (₹)</label>
                   <Input type="number" placeholder="0.00" value={expenseData.amount} onChange={(e) => setExpenseData({...expenseData, amount: e.target.value})} required />
                 </div>
                 <div className="space-y-1">
@@ -373,6 +445,44 @@ export default function GroupDetail() {
                 <div className="flex gap-3 pt-4 border-t border-white/5 pt-6">
                    <Button type="button" variant="secondary" onClick={() => setShowExpenseModal(false)} className="flex-1">Back</Button>
                    <Button type="submit" className="flex-1">Split <DollarSign className="w-4 h-4 ml-1"/></Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {showSettleModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="glass-card w-full max-w-sm p-10 rounded-3xl titanium-border">
+              <h2 className="text-2xl font-black font-heading text-slate-900 mb-6">Settle Up</h2>
+              <form onSubmit={handleSettleUp} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1 text-[10px]">Who did you pay?</label>
+                  <select 
+                    className="w-full h-12 rounded-xl bg-white border border-slate-200 text-slate-900 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    value={settleData.toId}
+                    onChange={(e) => setSettleData({...settleData, toId: e.target.value})}
+                    required
+                  >
+                    <option value="">Select a member...</option>
+                    {group.members.map((m: any) => (
+                      <option key={m._id} value={m._id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1 text-[10px]">Amount Paid (₹)</label>
+                  <Input 
+                    type="number" 
+                    placeholder="0.00" 
+                    value={settleData.amount} 
+                    onChange={(e) => setSettleData({...settleData, amount: e.target.value})} 
+                    required 
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                   <Button type="button" variant="secondary" onClick={() => setShowSettleModal(false)} className="flex-1">Cancel</Button>
+                   <Button type="submit" className="flex-1">Confirm Payment</Button>
                 </div>
               </form>
             </motion.div>

@@ -19,20 +19,31 @@ export async function POST(req: Request) {
     }
 
     const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "User already exists" },
-        { status: 400 }
-      );
-    }
-
     const hashedPassword = await hashPassword(password);
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      isGhost: false,
-    });
+    let user;
+
+    if (existingUser) {
+        if (existingUser.isGhost) {
+            console.log(`[AUTH] Register: Ghost user found for ${email}. Upgrading to full account...`);
+            existingUser.name = name;
+            existingUser.password = hashedPassword;
+            existingUser.isGhost = false;
+            await existingUser.save();
+            user = existingUser;
+        } else {
+            return NextResponse.json(
+                { error: "User already exists" },
+                { status: 400 }
+            );
+        }
+    } else {
+        user = await User.create({
+            name,
+            email,
+            password: hashedPassword,
+            isGhost: false,
+        });
+    }
 
     const token = signToken(user._id.toString());
 

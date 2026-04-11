@@ -116,19 +116,19 @@ export default function LandingPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                       <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Receivable</p>
-                      <p className="text-3xl font-black font-heading text-primary">$420.50</p>
+                      <p className="text-3xl font-black font-heading text-primary">₹420.50</p>
                     </div>
                     <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                       <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Payable</p>
-                      <p className="text-3xl font-black font-heading text-slate-900">$85.20</p>
+                      <p className="text-3xl font-black font-heading text-slate-900">₹85.20</p>
                     </div>
                   </div>
 
                   <div className="space-y-4">
                      <p className="text-[10px] font-black uppercase text-slate-400">Recent Transactions</p>
                      {[
-                       { name: "Grocery Split", amount: "$120.00", icon: <Zap className="w-4 h-4" /> },
-                       { name: "Electricity Bill", amount: "$85.50", icon: <ArrowUpRight className="w-4 h-4" /> }
+                       { name: "Grocery Split", amount: "₹120.00", icon: <Zap className="w-4 h-4" /> },
+                       { name: "Electricity Bill", amount: "₹85.50", icon: <ArrowUpRight className="w-4 h-4" /> }
                      ].map((item, i) => (
                        <div key={i} className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-100">
                          <div className="flex items-center gap-3">
