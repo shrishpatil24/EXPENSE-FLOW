@@ -19,7 +19,7 @@ export default function GroupDetail() {
   const groupId = params.id;
   
   const [group, setGroup] = useState<any>(null);
-  const [expenses, setExpenses] = useState([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
   const [balances, setBalances] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   

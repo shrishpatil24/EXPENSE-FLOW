@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { parseApiResponse } from "@/lib/utils";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Wallet, ShieldCheck, CheckCircle, Smartphone, Globe } from "lucide-react";
@@ -28,14 +29,18 @@ export default function RegisterPage() {
         body: JSON.stringify({ name, email, password }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await parseApiResponse<{
+        error?: string;
+        token: string;
+        user: { id: string; name: string; email: string };
+      }>(res);
+      if (!res.ok) throw new Error(data.error || "Registration failed");
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setLoading(false);
     }

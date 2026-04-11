@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { parseApiResponse } from "@/lib/utils";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { Wallet, LogIn, ShieldCheck, Zap } from "lucide-react";
+import { Wallet, ShieldCheck } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -27,14 +28,18 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await parseApiResponse<{
+        error?: string;
+        token: string;
+        user: { id: string; name: string; email: string };
+      }>(res);
+      if (!res.ok) throw new Error(data.error || "Login failed");
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }

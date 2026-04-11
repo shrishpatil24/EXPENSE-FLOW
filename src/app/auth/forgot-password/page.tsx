@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { parseApiResponse } from "@/lib/utils";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Wallet, ShieldCheck, Globe } from "lucide-react";
@@ -29,15 +30,15 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await parseApiResponse<{ error?: string; message?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Password reset failed");
 
       setSuccess("Password reset successfully. Redirecting to login...");
       setTimeout(() => {
         router.push("/auth/login");
       }, 2000);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Password reset failed");
     } finally {
       setLoading(false);
     }

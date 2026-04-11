@@ -4,7 +4,7 @@ import Group from "@/models/Group";
 import User from "@/models/User";
 import { verifyToken } from "@/lib/auth";
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await dbConnect();
     const authHeader = req.headers.get("authorization");
