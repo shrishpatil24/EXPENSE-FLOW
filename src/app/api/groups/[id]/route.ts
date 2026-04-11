@@ -3,6 +3,7 @@ import dbConnect from "@/lib/db";
 import Group from "@/models/Group";
 import Expense from "@/models/Expense";
 import { verifyToken } from "@/lib/auth";
+import { publishGroupLedgerInvalidation } from "@/lib/groupEventBus";
 
 export async function DELETE(
   req: Request,
@@ -22,6 +23,8 @@ export async function DELETE(
     if (!decoded) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
+
+    publishGroupLedgerInvalidation(id, { reason: "group_deleted" });
 
     // Delete group
     const group = await Group.findByIdAndDelete(id);

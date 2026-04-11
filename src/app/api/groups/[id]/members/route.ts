@@ -3,6 +3,7 @@ import dbConnect from "@/lib/db";
 import Group from "@/models/Group";
 import User from "@/models/User";
 import { verifyToken } from "@/lib/auth";
+import { publishGroupLedgerInvalidation } from "@/lib/groupEventBus";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -55,6 +56,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         group.members.push(targetUser._id);
         await group.save();
     }
+
+    publishGroupLedgerInvalidation(groupId, { reason: "member_updated" });
 
     return NextResponse.json({ 
       message: targetUser.isGhost ? "Ghost member created" : "Registered user linked to group", 

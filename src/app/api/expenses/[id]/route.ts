@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Expense from "@/models/Expense";
 import { verifyToken } from "@/lib/auth";
+import { publishGroupLedgerInvalidation } from "@/lib/groupEventBus";
 
 export async function DELETE(
   req: Request,
@@ -26,6 +27,10 @@ export async function DELETE(
     if (!expense) {
       return NextResponse.json({ error: "Expense not found" }, { status: 404 });
     }
+
+    publishGroupLedgerInvalidation(String(expense.groupId), {
+      reason: "expense_deleted",
+    });
 
     return NextResponse.json({ message: "Expense deleted successfully" });
   } catch (error: any) {

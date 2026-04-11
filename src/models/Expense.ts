@@ -52,7 +52,8 @@ const ExpenseSchema = new Schema<IExpense>(
   { timestamps: true }
 );
 
-// Index for quick group expense lookups
-ExpenseSchema.index({ groupId: 1 });
+// Indexes: prefix match on groupId via compound; text search on ledger fields
+ExpenseSchema.index({ groupId: 1, date: -1 });
+ExpenseSchema.index({ description: "text", category: "text" });
 
 export default mongoose.models.Expense || mongoose.model<IExpense>("Expense", ExpenseSchema);

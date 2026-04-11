@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import dbConnect from "@/lib/db";
 import Settlement from "@/models/Settlement";
+import LedgerAudit from "@/models/LedgerAudit";
 import { verifyToken } from "@/lib/auth";
+import { publishGroupLedgerInvalidation } from "@/lib/groupEventBus";
 
 export async function POST(req: Request) {
   try {
@@ -23,17 +26,60 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const settlement = await Settlement.create({
-      fromId,
-      toId,
-      groupId,
-      amount,
-      status: "COMPLETED"
-    });
+    const session = await mongoose.startSession();
+    let settlement: InstanceType<typeof Settlement> | undefined;
 
-    return NextResponse.json({ message: "Settlement recorded", settlement }, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    try {
+      await session.withTransaction(async () => {
+        const created = await Settlement.create(
+          [
+            {
+              fromId,
+              toId,
+              groupId,
+              amount,
+              status: "COMPLETED",
+            },
+          ],
+          { session }
+        );
+        settlement = created[0];
+        await LedgerAudit.create(
+          [
+            {
+              groupId,
+              action: "SETTLEMENT_RECORDED",
+              meta: {
+                settlementId: String(settlement!._id),
+                fromId: String(fromId),
+                toId: String(toId),
+                amount,
+              },
+            },
+          ],
+          { session }
+        );
+      });
+    } finally {
+      session.endSession();
+    }
+
+    if (!settlement) {
+      return NextResponse.json(
+        { error: "Settlement write failed" },
+        { status: 500 }
+      );
+    }
+
+    publishGroupLedgerInvalidation(String(groupId), { reason: "settlement" });
+
+    return NextResponse.json(
+      { message: "Settlement recorded", settlement },
+      { status: 201 }
+    );
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

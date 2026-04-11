@@ -1,8 +1,12 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Expense-Flow
+
+Shared expense groups (MongoDB + Next.js). Course rubric write-up: [docs/rubric-report.md](docs/rubric-report.md). Labeled MongoDB queries (mongosh): [scripts/expense-flow-queries.mjs](scripts/expense-flow-queries.mjs).
+
+**Live ledger updates:** open a group page; the app opens an SSE stream (`/api/groups/[id]/events?token=...`) and refetches when others add expenses or settlements. The in-memory event bus is single-process only.
 
 ## Getting Started
 
-First, run the development server:
+Run the development server:
 
 ```bash
 npm run dev

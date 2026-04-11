@@ -46,19 +46,20 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50/50">
-      <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 overflow-hidden border border-slate-100">
+    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
+      <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 surface-card rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden border-white/80 shadow-2xl shadow-slate-300/30">
         
         {/* Left Side: Brand Visuals */}
-        <div className="hidden lg:flex flex-col justify-between p-12 bg-slate-900 text-white relative overflow-hidden">
-          <div className="absolute inset-0 bg-[linear-gradient(to_bottom_right,rgba(37,99,235,0.15),transparent)]" />
-          <div className="absolute -top-24 -right-24 w-96 h-96 bg-primary/20 rounded-full blur-[100px]" />
+        <div className="hidden lg:flex flex-col justify-between p-12 bg-slate-950 text-white relative overflow-hidden">
+          <div className="absolute inset-0 bg-[linear-gradient(145deg,rgba(37,99,235,0.35),transparent_55%,rgba(99,102,241,0.2))]" />
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-primary/30 rounded-full blur-[100px]" />
+          <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
           
           <Link href="/" className="flex items-center gap-2 relative z-10">
             <div className="w-10 h-10 primary-gradient rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
               <Wallet className="text-white w-6 h-6" />
             </div>
-            <span className="text-2xl font-black font-heading tracking-tighter">EXPENSEFLOW</span>
+            <span className="text-2xl font-black font-heading tracking-tight">EXPENSE<span className="text-sky-400">FLOW</span></span>
           </Link>
 
           <div className="relative z-10 space-y-6">

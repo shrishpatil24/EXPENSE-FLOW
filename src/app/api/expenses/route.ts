@@ -3,6 +3,7 @@ import dbConnect from "@/lib/db";
 import Expense, { SplitType } from "@/models/Expense";
 import Group from "@/models/Group";
 import { verifyToken } from "@/lib/auth";
+import { publishGroupLedgerInvalidation } from "@/lib/groupEventBus";
 
 export async function POST(req: Request) {
   try {
@@ -92,6 +93,8 @@ export async function POST(req: Request) {
       splitType,
       splits: computedSplits,
     });
+
+    publishGroupLedgerInvalidation(String(groupId), { reason: "expense_created" });
 
     return NextResponse.json({ message: "Expense recorded", expense }, { status: 201 });
 
