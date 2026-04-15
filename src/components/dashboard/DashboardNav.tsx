@@ -69,6 +69,7 @@ export function DashboardNav() {
             </span>
           </div>
         )}
+        <button
           onClick={handleLogout}
           className="flex items-center gap-2 rounded-xl border border-transparent px-3 py-2 text-sm font-bold text-slate-500 transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
         >

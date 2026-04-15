@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useGroupLedgerStream } from "@/hooks/useGroupLedgerStream";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { Button } from "@/components/ui/Button";
@@ -466,7 +466,8 @@ export default function GroupDetail() {
             <div className="space-y-4">
               {expenses.length > 0 ? (
                 expenses.map((expense: any, index: number) => (
-                  <motion.div 
+                  <React.Fragment key={expense._id}>
+                    <motion.div 
                     layout
                     initial={{ opacity: 0, x: 16 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -549,7 +550,7 @@ export default function GroupDetail() {
                         </motion.div>
                     )}
                   </AnimatePresence>
-                </>
+                  </React.Fragment>
                 ))
               ) : (
                 <Card className="p-16 text-center border-dashed border-2 border-slate-200/80 bg-slate-50/20">

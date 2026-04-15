@@ -302,9 +302,6 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
-            </div>
-          </div>
-        </section>
 
         <section className="py-16 sm:py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
