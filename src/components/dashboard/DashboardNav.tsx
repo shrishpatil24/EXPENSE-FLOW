@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { NotificationList } from "@/components/common/NotificationList";
 
 export function DashboardNav() {
   const router = useRouter();
@@ -59,6 +60,7 @@ export function DashboardNav() {
       </Link>
 
       <div className="flex items-center gap-2 sm:gap-4">
+        <NotificationList />
         {userLabel && (
           <div className="hidden sm:flex items-center gap-2 max-w-[200px] rounded-full border border-slate-200/80 bg-white/70 px-3 py-1.5 shadow-sm">
             <User className="w-4 h-4 text-primary shrink-0" />
@@ -67,8 +69,6 @@ export function DashboardNav() {
             </span>
           </div>
         )}
-        <button
-          type="button"
           onClick={handleLogout}
           className="flex items-center gap-2 rounded-xl border border-transparent px-3 py-2 text-sm font-bold text-slate-500 transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
         >

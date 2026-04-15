@@ -4,6 +4,7 @@ import Group from "@/models/Group";
 import User from "@/models/User";
 import { verifyToken } from "@/lib/auth";
 import { publishGroupLedgerInvalidation } from "@/lib/groupEventBus";
+import { createNotification, NotificationTemplates } from "@/lib/notificationEngine";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -52,9 +53,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // 3. Add to group if not already a member
-    if (!group.members.includes(targetUser._id)) {
+    const isMember = group.members.some((mId: any) => mId.toString() === targetUser._id.toString());
+    if (!isMember) {
         group.members.push(targetUser._id);
+        // Assign MEMBER role
+        group.roles.push({ userId: targetUser._id, role: "MEMBER" });
         await group.save();
+
+        // Notify the added user (if not a ghost)
+        if (!targetUser.isGhost) {
+          const inviter = await User.findById(decoded.userId).select("name");
+          await createNotification(
+            targetUser._id.toString(),
+            NotificationTemplates.addedToGroup(group.name, inviter?.name || "Someone"),
+            "ADDED_TO_GROUP",
+            { groupId: group._id }
+          );
+        }
     }
 
     publishGroupLedgerInvalidation(groupId, { reason: "member_updated" });

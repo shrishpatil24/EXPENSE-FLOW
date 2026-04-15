@@ -48,6 +48,7 @@ const ExpenseSchema = new Schema<IExpense>(
     splits: [SplitSchema],
     date: { type: Date, default: Date.now },
     category: { type: String, default: "General" },
+    version: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

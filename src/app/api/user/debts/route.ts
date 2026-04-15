@@ -1,5 +1,14 @@
 import { TransactionHealth } from "@/lib/transactionHealth";
 import User from "@/models/User";
+import Group from "@/models/Group";
+import Expense from "@/models/Expense";
+import Settlement from "@/models/Settlement";
+import { SettlementEngine } from "@/lib/settlementEngine";
+import dbConnect from "@/lib/db";
+import { verifyToken } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { updateCreditScore, calculateOverduePenalty } from "@/lib/creditEngine";
+import CreditHistory from "@/models/CreditHistory";
 
 export async function GET(req: Request) {
   try {
@@ -63,6 +72,34 @@ export async function GET(req: Request) {
               });
           }
       });
+    }
+
+    // --- Passive Credit Score Decay ---
+    // If user has old debts and hasn't had a penalty in the last 24h, apply one.
+    if (allDebts.length > 0) {
+      const lastPenalty = await CreditHistory.findOne({ 
+        userId, 
+        reason: { $regex: /Overdue/i },
+        timestamp: { $gt: new Date(Date.now() - 24*60*60*1000) }
+      });
+
+      if (!lastPenalty) {
+        // Find oldest debt
+        const oldestDebt = allDebts.reduce((min, d) => 
+          (d.health.daysOld > min.health.daysOld) ? d : min, 
+          allDebts[0]
+        );
+        
+        const penalty = calculateOverduePenalty(new Date(Date.now() - (oldestDebt.health.daysOld * 86400000)));
+        if (penalty < 0) {
+          await updateCreditScore(userId, penalty, `Overdue debt in "${oldestDebt.groupName}"`);
+          // Refresh user data after update
+          const updatedUser = await User.findById(userId).select("creditScore");
+          if (user && updatedUser) {
+            (user as any).creditScore = updatedUser.creditScore;
+          }
+        }
+      }
     }
 
     return NextResponse.json({ 

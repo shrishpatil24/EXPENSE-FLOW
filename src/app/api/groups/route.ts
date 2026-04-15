@@ -52,6 +52,7 @@ export async function POST(req: Request) {
       description,
       createdBy: creatorId,
       members: [creatorId], // Creator is the first member
+      roles: [{ userId: creatorId, role: "ADMIN" }], // Creator is ADMIN
     });
 
     return NextResponse.json({ group }, { status: 201 });

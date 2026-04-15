@@ -1,31 +1,55 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import User from "@/models/User";
+import PasswordResetToken from "@/models/PasswordResetToken";
 import { hashPassword } from "@/lib/auth";
 
+/**
+ * POST /api/auth/reset-password
+ * Validates a reset token and updates the user's password.
+ */
 export async function POST(req: Request) {
   try {
     await dbConnect();
-    const { email, password } = await req.json();
+    const { token, password } = await req.json();
 
-    if (!email || !password) {
+    if (!token || !password) {
       return NextResponse.json(
-        { error: "Email and new password are required" },
+        { error: "Reset token and new password are required" },
         { status: 400 }
       );
     }
 
-    const existingUser = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, "i") } });
-    if (!existingUser) {
+    // Find and validate token
+    const resetToken = await PasswordResetToken.findOne({
+      token,
+      expiresAt: { $gt: new Date() },
+      used: false,
+    });
+
+    if (!resetToken) {
       return NextResponse.json(
-        { error: "No account matches that email address" },
+        { error: "Invalid or expired reset token" },
+        { status: 400 }
+      );
+    }
+
+    const user = await User.findOne({ email: resetToken.email });
+    if (!user) {
+      return NextResponse.json(
+        { error: "User associated with this token no longer exists" },
         { status: 404 }
       );
     }
 
+    // Update password
     const hashedPassword = await hashPassword(password);
-    existingUser.password = hashedPassword;
-    await existingUser.save();
+    user.password = hashedPassword;
+    await user.save();
+
+    // Mark token as used
+    resetToken.used = true;
+    await resetToken.save();
 
     return NextResponse.json(
       { message: "Password reset successfully. You can now log in." },

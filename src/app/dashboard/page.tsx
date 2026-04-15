@@ -9,11 +9,14 @@ import { Badge } from "@/components/ui/Badge";
 import { motion } from "framer-motion";
 import { Plus, Users, ArrowUpRight, ArrowDownLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { CreditScoreTrend } from "@/components/dashboard/CreditScoreTrend";
+import { CreditScoreGauge } from "@/components/dashboard/CreditScoreGauge";
 
 export default function Dashboard() {
   const [groups, setGroups] = useState<any[]>([]);
   const [debts, setDebts] = useState<any[]>([]);
   const [credits, setCredits] = useState<any[]>([]);
+  const [creditData, setCreditData] = useState({ score: 1000, rating: "Excellent" });
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -26,19 +29,22 @@ export default function Dashboard() {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
       
-      const [gRes, dRes] = await Promise.all([
+      const [gRes, dRes, cRes] = await Promise.all([
           fetch("/api/groups", { headers }),
-          fetch("/api/user/debts", { headers })
+          fetch("/api/user/debts", { headers }),
+          fetch("/api/user/credit-history", { headers })
       ]);
 
-      const [gData, dData] = await Promise.all([
+      const [gData, dData, cData] = await Promise.all([
           gRes.json(),
-          dRes.json()
+          dRes.json(),
+          cRes.json()
       ]);
 
       setGroups(gData.groups || []);
       setDebts(dData.debts || []);
       setCredits(dData.credits || []);
+      setCreditData({ score: cData.currentScore, rating: cData.rating });
       setLastSyncedAt(new Date());
     } catch (err) {
       console.error(err);
@@ -146,6 +152,16 @@ export default function Dashboard() {
             <Plus className="w-5 h-5 mr-2" />
             New group
           </Button>
+        </section>
+
+        {/* Credit & Info Section */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1">
+            <CreditScoreGauge score={creditData.score} rating={creditData.rating} />
+          </div>
+          <div className="lg:col-span-2">
+            <CreditScoreTrend />
+          </div>
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-5 lg:gap-6">

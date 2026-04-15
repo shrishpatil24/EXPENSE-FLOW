@@ -11,10 +11,14 @@ import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { 
   Plus, ArrowLeft, Receipt, 
   TrendingUp, Calculator, UserPlus, 
-  CheckCircle2, DollarSign, Trash2
+  CheckCircle2, DollarSign, Trash2, Settings
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { GroupAnalytics } from "@/components/groups/GroupAnalytics";
+import { ExpenseEditModal } from "@/components/expenses/ExpenseEditModal";
+import { AuditTrailView } from "@/components/expenses/AuditTrailView";
+import { History, ShieldCheck } from "lucide-react";
 
 export default function GroupDetail() {
   const params = useParams();
@@ -41,6 +45,8 @@ export default function GroupDetail() {
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberEmail, setNewMemberEmail] = useState("");
   const [settleData, setSettleData] = useState({ toId: "", amount: "" });
+  const [editingExpense, setEditingExpense] = useState<any>(null);
+  const [showAuditId, setShowAuditId] = useState<string | null>(null);
   const [expenseData, setExpenseData] = useState({
     description: "",
     amount: "",
@@ -187,17 +193,20 @@ export default function GroupDetail() {
       const token = localStorage.getItem("token");
       const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       
-      const res = await fetch("/api/settlements", {
+      const res = await fetch("/api/transactions", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}` 
         },
         body: JSON.stringify({
-          fromId: storedUser.id,
-          toId: settleData.toId,
+          type: "SETTLEMENT",
           groupId,
-          amount: parseFloat(settleData.amount)
+          payload: {
+            fromId: storedUser.id,
+            toId: settleData.toId,
+            amount: parseFloat(settleData.amount)
+          }
         }),
       });
       if (res.ok) {
@@ -324,6 +333,12 @@ export default function GroupDetail() {
           </div>
         </section>
 
+        {/* Group Analytics Dashboard */}
+        <section className="space-y-4">
+            <h2 className="text-xl font-bold font-heading text-slate-900 ml-2">Insights & Distribution</h2>
+            <GroupAnalytics groupId={groupId as string} />
+        </section>
+
         <LayoutGroup>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
@@ -334,25 +349,35 @@ export default function GroupDetail() {
                 <Calculator className="w-4 h-4 text-primary" /> Balances
               </h3>
               <div className="space-y-4">
-                {balances?.individualBalances?.map((bal: any) => (
-                  <motion.div
-                    layout
-                    key={bal.userId}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="text-slate-600 font-medium">{bal.name}</span>
-                    <motion.span
+                {balances?.individualBalances?.map((bal: any, idx: number) => {
+                  const roleObj = group.roles?.find((r: any) => r.userId === bal.userId);
+                  return (
+                    <motion.div
                       layout
-                      key={`${bal.userId}-${bal.netBalance}`}
-                      initial={{ scale: 1.05, opacity: 0.7 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
-                      className={`font-bold ${bal.netBalance >= 0 ? "text-primary" : "text-slate-900 opacity-60"}`}
+                      key={bal.userId}
+                      className="flex items-center justify-between"
                     >
-                      {bal.netBalance >= 0 ? `+ ₹${bal.netBalance}` : `- ₹${Math.abs(bal.netBalance)}`}
-                    </motion.span>
-                  </motion.div>
-                ))}
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-600 font-medium">{bal.name}</span>
+                        {roleObj?.role === "ADMIN" && (
+                          <div className="flex items-center gap-0.5 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase">
+                            <ShieldCheck className="w-2.5 h-2.5" /> Admin
+                          </div>
+                        )}
+                      </div>
+                      <motion.span
+                        layout
+                        key={`${bal.userId}-${bal.netBalance}`}
+                        initial={{ scale: 1.05, opacity: 0.7 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 420, damping: 28 }}
+                        className={`font-bold ${bal.netBalance >= 0 ? "text-primary" : "text-slate-900 opacity-60"}`}
+                      >
+                        {bal.netBalance >= 0 ? `+ ₹${bal.netBalance}` : `- ₹${Math.abs(bal.netBalance)}`}
+                      </motion.span>
+                    </motion.div>
+                  );
+                })}
               </div>
             </Card>
 
@@ -479,18 +504,52 @@ export default function GroupDetail() {
                         </p>
                         <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400">{new Date(expense.date).toLocaleDateString()}</p>
                       </div>
-                      {expense.type === 'EXPENSE' && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
                             type="button"
-                            disabled={deletingExpenseId === expense._id}
-                            onClick={() => handleDeleteExpense(expense._id)}
-                            className="p-2 rounded-xl bg-slate-50 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-40"
+                            onClick={() => setShowAuditId(showAuditId === expense._id ? null : expense._id)}
+                            className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"
                         >
-                            <Trash2 className="w-4 h-4" />
+                            <History className="w-4 h-4" />
                         </button>
-                      )}
+                        {expense.type === 'EXPENSE' && (
+                          <>
+                            <button 
+                                onClick={() => setEditingExpense(expense)}
+                                className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"
+                            >
+                                <Settings className="w-4 h-4" />
+                            </button>
+                            <button 
+                                type="button"
+                                disabled={deletingExpenseId === expense._id}
+                                onClick={() => handleDeleteExpense(expense._id)}
+                                className="p-2 rounded-xl bg-slate-50 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-40"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
+                  
+                  {/* Inline Audit Trail */}
+                  <AnimatePresence>
+                    {showAuditId === expense._id && (
+                        <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden px-6 pb-6"
+                        >
+                            <div className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100">
+                                <AuditTrailView expenseId={expense._id} />
+                            </div>
+                        </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
                 ))
               ) : (
                 <Card className="p-16 text-center border-dashed border-2 border-slate-200/80 bg-slate-50/20">
@@ -600,10 +659,18 @@ export default function GroupDetail() {
                 <div className="flex gap-3 pt-4">
                    <Button type="button" variant="secondary" onClick={() => setShowSettleModal(false)} className="flex-1" disabled={submittingSettle}>Cancel</Button>
                    <Button type="submit" className="flex-1" disabled={submittingSettle}>{submittingSettle ? "Confirming…" : "Confirm Payment"}</Button>
-                </div>
+                 </div>
               </form>
             </motion.div>
           </div>
+        )}
+
+        {editingExpense && (
+          <ExpenseEditModal 
+            expense={editingExpense} 
+            onClose={() => setEditingExpense(null)} 
+            onUpdate={fetchData} 
+          />
         )}
       </AnimatePresence>
     </div>

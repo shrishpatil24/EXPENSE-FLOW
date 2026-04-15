@@ -4,6 +4,8 @@ import Expense, { SplitType } from "@/models/Expense";
 import Group from "@/models/Group";
 import { verifyToken } from "@/lib/auth";
 import { publishGroupLedgerInvalidation } from "@/lib/groupEventBus";
+import { notifyMany, NotificationTemplates } from "@/lib/notificationEngine";
+import User from "@/models/User";
 
 export async function POST(req: Request) {
   try {
@@ -25,6 +27,7 @@ export async function POST(req: Request) {
       groupId, 
       paidBy, 
       splitType, 
+      category,
       participants // Array of { userId, value? }
     } = await req.json();
 
@@ -91,10 +94,26 @@ export async function POST(req: Request) {
       groupId,
       paidBy,
       splitType,
+      category: category || "General",
       splits: computedSplits,
     });
 
     publishGroupLedgerInvalidation(String(groupId), { reason: "expense_created" });
+
+    // Notify participants (excluding payer)
+    const payer = await User.findById(paidBy).select("name");
+    const otherParticipantIds = participants
+      .map((p: any) => p.userId.toString())
+      .filter((id: string) => id !== paidBy.toString());
+
+    if (otherParticipantIds.length > 0) {
+      await notifyMany(
+        otherParticipantIds,
+        NotificationTemplates.newExpense(group.name, amount, payer?.name || "Someone"),
+        "NEW_EXPENSE",
+        { groupId, expenseId: expense._id }
+      );
+    }
 
     return NextResponse.json({ message: "Expense recorded", expense }, { status: 201 });
 
