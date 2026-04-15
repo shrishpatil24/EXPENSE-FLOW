@@ -440,7 +440,7 @@ export default function GroupDetail() {
             </div>
             <div className="space-y-4">
               {expenses.length > 0 ? (
-                expenses.map((expense: any) => (
+                expenses.map((expense: any, index: number) => (
                   <motion.div 
                     layout
                     initial={{ opacity: 0, x: 16 }}
@@ -554,8 +554,8 @@ export default function GroupDetail() {
                     value={expenseData.paidBy}
                     onChange={(e) => setExpenseData({...expenseData, paidBy: e.target.value})}
                   >
-                    {group.members.map((m: any) => (
-                      <option key={m._id} value={m._id}>{m.name}</option>
+                    {group.members.map((m: any, idx: number) => (
+                      <option key={`${m._id}-${idx}`} value={m._id}>{m.name}</option>
                     ))}
                   </select>
                 </div>
@@ -582,8 +582,8 @@ export default function GroupDetail() {
                     required
                   >
                     <option value="">Select a member...</option>
-                    {group.members.map((m: any) => (
-                      <option key={m._id} value={m._id}>{m.name}</option>
+                    {group.members.map((m: any, idx: number) => (
+                      <option key={`${m._id}-${idx}`} value={m._id}>{m.name}</option>
                     ))}
                   </select>
                 </div>
