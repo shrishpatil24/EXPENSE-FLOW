@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
-
+import "./User";
 export enum SplitType {
   EQUAL = "EQUAL",
   PERCENTAGE = "PERCENTAGE",

@@ -6,6 +6,8 @@ export interface IUser extends Document {
   password?: string;
   image?: string;
   isGhost: boolean;
+  creditScore: number;
+  totalSettled: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +19,8 @@ const UserSchema = new Schema<IUser>(
     password: { type: String }, // Optional for ghost users
     image: { type: String },
     isGhost: { type: Boolean, default: false },
+    creditScore: { type: Number, default: 1000 },
+    totalSettled: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

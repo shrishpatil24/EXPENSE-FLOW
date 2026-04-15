@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
-
+import "./User";
 export interface ISettlement extends Document {
   fromId: mongoose.Types.ObjectId;
   toId: mongoose.Types.ObjectId;
