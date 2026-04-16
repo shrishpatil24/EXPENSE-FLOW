@@ -8,6 +8,7 @@ interface AnalyticsData {
   categoryTotals: { category: string; totalAmount: number; count: number }[];
   monthlyTrend: { year: number; month: number; totalAmount: number; count: number }[];
   perUserContribution: { userId: string; name: string; totalPaid: number; expenseCount: number }[];
+  error?: string;
 }
 
 export function GroupAnalytics({ groupId }: { groupId: string }) {
@@ -30,7 +31,7 @@ export function GroupAnalytics({ groupId }: { groupId: string }) {
   }, [groupId]);
 
   if (loading) return <div className="animate-pulse bg-slate-50 h-64 rounded-3xl" />;
-  if (!data) return null;
+  if (!data || !data.categoryTotals) return null;
 
   const maxSpend = Math.max(...data.categoryTotals.map(c => c.totalAmount), 1);
 

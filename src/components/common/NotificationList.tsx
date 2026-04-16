@@ -17,13 +17,7 @@ export function NotificationList() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // Poll every 30s
-    return () => clearInterval(interval);
-  }, []);
-
-  async function fetchNotifications() {
+  const fetchNotifications = async () => {
     try {
       const res = await fetch("/api/notifications");
       const data = await res.json();
@@ -32,7 +26,13 @@ export function NotificationList() {
     } catch (err) {
       console.error("Notifications fetch failed", err);
     }
-  }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   async function markRead(id: string) {
     try {

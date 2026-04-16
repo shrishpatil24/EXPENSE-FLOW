@@ -23,6 +23,7 @@ export interface IExpense extends Document {
   splits: ISplit[];
   date: Date;
   category?: string;
+  version?: number;
   createdAt: Date;
   updatedAt: Date;
 }

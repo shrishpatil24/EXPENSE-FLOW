@@ -53,6 +53,9 @@ export default function GroupDetail() {
     paidBy: "",
     splitType: "EQUAL",
   });
+  
+  // Custom split state
+  const [splitParticipants, setSplitParticipants] = useState<Record<string, { included: boolean; percentage?: number }>>({});
 
   // Split Calculator State
   const [calcAmount, setCalcAmount] = useState("");
@@ -99,6 +102,16 @@ export default function GroupDetail() {
       // Set default payor
       const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       setExpenseData(prev => ({ ...prev, paidBy: storedUser.id }));
+      
+      // Initialize split participants
+      if (currentGroup && currentGroup.members) {
+        const initialSplits: Record<string, { included: boolean; percentage?: number }> = {};
+        const equalPerc = 100 / currentGroup.members.length;
+        currentGroup.members.forEach((m: any) => {
+          initialSplits[m._id] = { included: true, percentage: equalPerc };
+        });
+        setSplitParticipants(initialSplits);
+      }
 
       setLastSyncedAt(new Date());
     } catch (err) {
@@ -160,6 +173,32 @@ export default function GroupDetail() {
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmittingExpense(true);
+    
+    // Prepare participants array
+    let participants: { userId: string; value: number }[] = [];
+    
+    if (expenseData.splitType === "EQUAL") {
+      const includedMemIds = Object.keys(splitParticipants).filter(id => splitParticipants[id].included);
+      participants = includedMemIds.map(userId => ({ userId, value: 1 }));
+      if (participants.length === 0) {
+        alert("Please select at least one person to split with.");
+        setSubmittingExpense(false);
+        return;
+      }
+    } else if (expenseData.splitType === "PERCENTAGE") {
+      const sum = Object.values(splitParticipants).reduce((acc, p) => p.included ? acc + (p.percentage || 0) : acc, 0);
+      if (Math.abs(sum - 100) > 0.1) {
+        alert(`Percentages must add up to 100%. Currently they add up to ${sum.toFixed(1)}%`);
+        setSubmittingExpense(false);
+        return;
+      }
+      participants = Object.keys(splitParticipants)
+        .filter(userId => splitParticipants[userId].included)
+        .map(userId => ({ userId, value: splitParticipants[userId].percentage || 0 }));
+    } else {
+       participants = group.members.map((m: any) => ({ userId: m._id, value: 1 }));
+    }
+
     try {
       const token = localStorage.getItem("token");
       const res = await fetch("/api/expenses", {
@@ -172,11 +211,19 @@ export default function GroupDetail() {
           ...expenseData,
           amount: parseFloat(expenseData.amount),
           groupId,
-          participants: group.members.map((m: any) => ({ userId: m._id, value: 1 })) // Simplification: Default to equal split
+          participants
         }),
       });
       if (res.ok) {
         setExpenseData({ description: "", amount: "", paidBy: "", splitType: "EQUAL" });
+        // Reset splits
+        const initialSplits: Record<string, { included: boolean; percentage?: number }> = {};
+        const equalPerc = 100 / group.members.length;
+        group.members.forEach((m: any) => {
+          initialSplits[m._id] = { included: true, percentage: equalPerc };
+        });
+        setSplitParticipants(initialSplits);
+        
         setShowExpenseModal(false);
         fetchData();
       }
@@ -184,6 +231,21 @@ export default function GroupDetail() {
     finally {
       setSubmittingExpense(false);
     }
+  };
+
+  const handleSplitParticipantChange = (userId: string, field: 'included' | 'percentage', val: boolean | number) => {
+    setSplitParticipants(prev => {
+      const updated = {
+        ...prev,
+        [userId]: {
+          ...prev[userId],
+          [field]: val
+        }
+      };
+      
+      // Auto-rebalance percentages if needed based on UX preference later
+      return updated;
+    });
   };
 
   const handleSettleUp = async (e: React.FormEvent) => {
@@ -321,9 +383,11 @@ export default function GroupDetail() {
             <Button variant="secondary" onClick={() => setShowMemberModal(true)} className="rounded-xl">
               <UserPlus className="w-4 h-4 mr-2" /> Invite
             </Button>
-            <Button variant="secondary" onClick={() => setShowSettleModal(true)} className="rounded-xl">
-              <DollarSign className="w-4 h-4 mr-2" /> Settle
-            </Button>
+            <Link href={`/dashboard/transactions?groupId=${groupId}`}>
+              <Button variant="secondary" className="rounded-xl bg-slate-100/80 hover:bg-slate-200/50">
+                <DollarSign className="w-4 h-4 mr-2" /> Settle
+              </Button>
+            </Link>
             <Button onClick={() => setShowExpenseModal(true)} className="rounded-xl shadow-lg shadow-primary/20">
               <Plus className="w-4 h-4 mr-2" /> Add expense
             </Button>
@@ -391,9 +455,16 @@ export default function GroupDetail() {
                         const fromName = group.members.find((m: any) => m._id === debt.from)?.name;
                         const toName = group.members.find((m: any) => m._id === debt.to)?.name;
                         return (
-                            <div key={i} className="p-4 bg-slate-50 rounded-2xl text-xs space-y-1">
-                                <p className="text-slate-500 font-medium"><span className="text-slate-900 font-bold">{fromName}</span> owes <span className="text-slate-900 font-bold">{toName}</span></p>
-                                <p className="text-primary text-lg font-black tracking-tighter">₹ {debt.amount}</p>
+                            <div key={i} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group-container">
+                                <div className="text-xs space-y-1">
+                                  <p className="text-slate-500 font-medium"><span className="text-slate-900 font-bold">{fromName}</span> owes <span className="text-slate-900 font-bold">{toName}</span></p>
+                                  <p className="text-primary text-lg font-black tracking-tighter">₹ {debt.amount}</p>
+                                </div>
+                                <Link href={`/dashboard/transactions?groupId=${groupId}&toUserId=${debt.to}&amount=${debt.amount}`}>
+                                  <Button variant="secondary" className="h-8 text-[11px] font-bold px-3 rounded-xl bg-slate-200 text-slate-700 hover:bg-primary hover:text-white transition-colors">
+                                    Pay {toName?.split(' ')[0] || ''}
+                                  </Button>
+                                </Link>
                             </div>
                         );
                     })
@@ -619,6 +690,55 @@ export default function GroupDetail() {
                     ))}
                   </select>
                 </div>
+                
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1 text-[10px]">Split Type</label>
+                    <div className="flex gap-2">
+                       <button type="button" onClick={() => setExpenseData(p => ({...p, splitType: "EQUAL"}))} className={`px-3 py-1 text-xs rounded-full font-bold ${expenseData.splitType === "EQUAL" ? "bg-primary text-white" : "bg-slate-100 text-slate-500"}`}>EQUAL</button>
+                       <button type="button" onClick={() => setExpenseData(p => ({...p, splitType: "PERCENTAGE"}))} className={`px-3 py-1 text-xs rounded-full font-bold ${expenseData.splitType === "PERCENTAGE" ? "bg-primary text-white" : "bg-slate-100 text-slate-500"}`}>PERCENTAGE</button>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100 space-y-3">
+                     {group.members.map((m: any) => {
+                       const pData = splitParticipants[m._id] || { included: true, percentage: 0 };
+                       return (
+                         <div key={m._id} className="flex items-center justify-between">
+                           <label className="flex items-center gap-3 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={pData.included} 
+                                onChange={(e) => handleSplitParticipantChange(m._id, 'included', e.target.checked)}
+                                className="w-4 h-4 rounded text-primary border-slate-300 focus:ring-primary/20"
+                              />
+                              <span className={`text-sm font-medium ${pData.included ? "text-slate-900" : "text-slate-400"}`}>{m.name} {m._id === expenseData.paidBy ? "(Payer)" : ""}</span>
+                           </label>
+                           {expenseData.splitType === "PERCENTAGE" && pData.included && (
+                               <div className="flex items-center gap-1">
+                                  <input 
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                    value={pData.percentage || ""}
+                                    onChange={(e) => handleSplitParticipantChange(m._id, 'percentage', parseFloat(e.target.value) || 0)}
+                                    className="w-16 h-8 text-right px-2 rounded-lg border border-slate-200 text-sm font-bold bg-white"
+                                  />
+                                  <span className="text-xs font-bold text-slate-400">%</span>
+                               </div>
+                           )}
+                           {expenseData.splitType === "EQUAL" && pData.included && (
+                               <span className="text-xs font-bold text-primary">
+                                  Included
+                               </span>
+                           )}
+                         </div>
+                       );
+                     })}
+                  </div>
+                </div>
+
                 <div className="flex gap-3 pt-4 border-t border-white/5 pt-6">
                    <Button type="button" variant="secondary" onClick={() => setShowExpenseModal(false)} className="flex-1" disabled={submittingExpense}>Back</Button>
                    <Button type="submit" className="flex-1" disabled={submittingExpense}>{submittingExpense ? "Recording…" : (<span className="inline-flex items-center">Split <DollarSign className="w-4 h-4 ml-1"/></span>)}</Button>
