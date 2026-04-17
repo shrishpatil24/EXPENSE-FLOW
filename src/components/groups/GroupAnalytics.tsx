@@ -31,9 +31,9 @@ export function GroupAnalytics({ groupId }: { groupId: string }) {
   }, [groupId]);
 
   if (loading) return <div className="animate-pulse bg-slate-50 h-64 rounded-3xl" />;
-  if (!data || !data.categoryTotals) return null;
+  if (!data || (data as any).error || !data.categoryTotals) return null;
 
-  const maxSpend = Math.max(...data.categoryTotals.map(c => c.totalAmount), 1);
+  const maxSpend = Math.max(...data.categoryTotals.map(c => c.totalAmount), 0) || 1;
 
   return (
     <div className="space-y-6">
@@ -103,7 +103,7 @@ export function GroupAnalytics({ groupId }: { groupId: string }) {
                 <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-500">No data found</div>
             ) : (
                 data.monthlyTrend.map((month, i) => {
-                    const maxMonthly = Math.max(...data.monthlyTrend.map(m => m.totalAmount), 1);
+                    const maxMonthly = Math.max(...data.monthlyTrend.map(m => m.totalAmount), 0) || 1;
                     const h = (month.totalAmount / maxMonthly) * 80; // 80% max height
                     return (
                         <div key={`${month.year}-${month.month}`} className="flex-1 flex flex-col items-center gap-2 group">

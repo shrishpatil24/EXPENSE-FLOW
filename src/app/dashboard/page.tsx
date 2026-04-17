@@ -1,41 +1,47 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Loader2, Plus, LogOut, ChevronRight, Activity, Wallet, PieChart, Users, Settings, Tag } from "lucide-react";
-import Link from "next/link";
-import { DashboardNav } from "@/components/dashboard/DashboardNav";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { motion, AnimatePresence } from "framer-motion";
+import { Plus, Users, ArrowUpRight, ArrowDownLeft, ChevronRight, Clock, Activity, Tag } from "lucide-react";
+import Link from "next/link";
+import { CreditScoreTrend } from "@/components/dashboard/CreditScoreTrend";
+import { CreditScoreGauge } from "@/components/dashboard/CreditScoreGauge";
+import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
 
 export default function Dashboard() {
-  const router = useRouter();
   const [groups, setGroups] = useState<any[]>([]);
   const [debts, setDebts] = useState<any[]>([]);
   const [credits, setCredits] = useState<any[]>([]);
   const [recentExpenses, setRecentExpenses] = useState<any[]>([]);
-  const [userLabel, setUserLabel] = useState<string | null>(null);
-  const [initials, setInitials] = useState<string>("");
-  
+  const [creditData, setCreditData] = useState({ score: 1000, rating: "Excellent" });
+  const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [clock, setClock] = useState(() => new Date());
   const [creatingGroup, setCreatingGroup] = useState(false);
-
+  
   const fetchData = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
       
-      const [gRes, dRes, eRes] = await Promise.all([
+      const [gRes, dRes, cRes, eRes] = await Promise.all([
           fetch("/api/groups", { headers }),
           fetch("/api/user/debts", { headers }),
+          fetch("/api/user/credit-history", { headers }),
           fetch("/api/transactions/recent", { headers })
       ]);
 
-      const [gData, dData, eData] = await Promise.all([
+      const [gData, dData, cData, eData] = await Promise.all([
           gRes.json(),
           dRes.json(),
+          cRes.json(),
           eRes.ok ? eRes.json() : { transactions: [] }
       ]);
 
@@ -43,8 +49,12 @@ export default function Dashboard() {
       setDebts(dData.debts || []);
       setCredits(dData.credits || []);
       setRecentExpenses(eData.transactions || []);
+      setCreditData({ score: cData.currentScore || 1000, rating: cData.rating || "Excellent" });
+      setLastSyncedAt(new Date());
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -77,153 +87,285 @@ export default function Dashboard() {
     fetchData();
   }, [fetchData]);
 
-  const colors = [
-    { bg: "bg-[#FCE6D5]", text: "text-[#D9874D]" },
-    { bg: "bg-[#D6F5E1]", text: "text-[#5CB27A]" },
-    { bg: "bg-[#E3DFFF]", text: "text-[#8877E5]" },
-    { bg: "bg-[#E2F2FC]", text: "text-[#629CC4]" },
-    { bg: "bg-[#FCE2F4]", text: "text-[#D27EBA]" },
-    { bg: "bg-[#F0F2F5]", text: "text-[#8E9BAC]" }
-  ];
+  useEffect(() => {
+    const t = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void fetchData();
+      }
+    }, 45000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void fetchData();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [fetchData]);
+
+  const totalPayable = debts.reduce((acc, d) => acc + d.amount, 0);
+  const totalReceivable = credits.reduce((acc, c) => acc + c.amount, 0);
+  const syncLabel =
+    lastSyncedAt?.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }) ?? "—";
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
+    <div className="min-h-screen flex flex-col bg-slate-50">
       <DashboardNav />
 
-      {/* Main Layout Area */}
-      <div className="max-w-[1600px] mx-auto px-6 py-10 flex flex-col lg:flex-row gap-8 items-start">
-        
-        {/* Left Sidebar (Filters/Quick actions like image) */}
-        <aside className="w-full lg:w-64 shrink-0 space-y-8">
-           
-           <div className="bg-[#111111] text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden flex flex-col items-center text-center">
-              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-400 to-transparent"></div>
-              <h3 className="text-xl font-bold leading-tight z-10 mb-2">Create New Group</h3>
-              <p className="text-slate-400 text-xs z-10">Start splitting expenses with friends or family.</p>
-              <button onClick={() => setShowCreate(true)} className="mt-6 z-10 w-full py-3 bg-[#4FC0ED] hover:bg-[#3FAEE0] text-black font-extrabold rounded-full transition-colors text-sm flex items-center justify-center gap-2">
-                 <Plus className="w-4 h-4" /> Create Group
-              </button>
-           </div>
-
-           <div className="space-y-4">
-              <h4 className="font-bold text-slate-900 border-b border-slate-200 pb-2">Recent Transactions</h4>
-              <div className="space-y-3">
-                 {recentExpenses.length > 0 ? (
-                    recentExpenses.slice(0, 4).map((txn, idx) => (
-                      <div key={txn.id || txn._id || idx} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
-                         <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${txn.type === 'expense' ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'}`}>
-                           <Activity className="w-4 h-4" />
-                         </div>
-                         <div className="flex-1 min-w-0">
-                           <p className="font-bold text-slate-800 text-sm truncate leading-tight">
-                              {txn.type === 'expense' ? txn.description : `Settled with ${txn.toName || txn.fromName || 'User'}`}
-                           </p>
-                           <p className="text-[11px] text-slate-500 truncate">
-                              {txn.groupName || 'Group'}
-                           </p>
-                         </div>
-                         <span className={`font-bold text-sm shrink-0 ${txn.type === 'expense' ? 'text-slate-800' : 'text-emerald-600'}`}>
-                           {txn.type === 'expense' ? '-' : '+'}₹{txn.amount.toFixed(0)}
-                         </span>
-                      </div>
-                    ))
-                 ) : (
-                    <div className="text-center py-4 text-slate-500 text-sm bg-slate-100/50 rounded-2xl">
-                       No recent transactions.
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-10 space-y-10">
+        {debts.length > 0 && (
+            <motion.div 
+                initial={{ opacity: 0, y: -16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 380, damping: 28 }}
+            >
+              <Card className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-red-100/80 bg-gradient-to-r from-red-50/90 to-orange-50/30">
+                <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-red-500/15 flex items-center justify-center ring-1 ring-red-200/50">
+                        <ArrowUpRight className="w-7 h-7 text-red-600" />
                     </div>
-                 )}
-                 <Link href="/dashboard/transactions" className="block text-center text-xs font-bold text-[#4FC0ED] hover:text-[#3FAEE0] mt-2">
-                    View all transactions
-                 </Link>
+                    <div>
+                        <Badge tone="danger" className="mb-2">Action needed</Badge>
+                        <h4 className="text-base font-black font-heading text-red-950">Outstanding balances</h4>
+                        <p className="text-sm text-red-800/90 font-medium mt-0.5">You owe <span className="font-black tabular-amount text-red-950">₹{totalPayable.toFixed(2)}</span> across groups.</p>
+                    </div>
+                </div>
+              </Card>
+            </motion.div>
+        )}
+
+        <section className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="text-4xl sm:text-5xl font-black font-heading text-slate-900 tracking-tight">Dashboard</h1>
+              <Badge tone="neutral" className="tabular-nums">
+                {clock.toLocaleTimeString()} · synced {syncLabel}
+              </Badge>
+            </div>
+            <p className="text-slate-600 font-medium max-w-xl">Groups, receivables, and payables in one place. Data refreshes when you focus this tab or every 45 seconds.</p>
+          </div>
+          <Button onClick={() => setShowCreate(true)} className="h-14 px-8 rounded-2xl shrink-0 shadow-lg shadow-primary/20">
+            <Plus className="w-5 h-5 mr-2" />
+            New group
+          </Button>
+        </section>
+
+        {/* Financial Overview & Credit Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+           <div className="lg:col-span-2 space-y-8">
+              {/* Credit & Info Section */}
+              <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-1">
+                  <CreditScoreGauge score={creditData.score} rating={creditData.rating} />
+                </div>
+                <div className="md:col-span-2">
+                  <CreditScoreTrend />
+                </div>
+              </section>
+
+              {/* Balances */}
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="p-8 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-4 opacity-[0.06] transition-transform duration-500 group-hover:scale-110">
+                    <ArrowUpRight className="w-36 h-36 text-primary" />
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Total receivable</p>
+                  <motion.h3
+                    key={totalReceivable}
+                    initial={{ opacity: 0.6, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="text-4xl sm:text-5xl font-black font-heading text-gradient-brand tabular-amount"
+                  >
+                    ₹{totalReceivable.toFixed(2)}
+                  </motion.h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-3">What others owe you</p>
+                </Card>
+                <Card className="p-8 relative overflow-hidden group">
+                   <div className="absolute top-0 right-0 p-4 opacity-[0.05] transition-transform duration-500 group-hover:scale-110">
+                    <ArrowDownLeft className="w-36 h-36 text-slate-800" />
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Total payable</p>
+                  <motion.h3
+                    key={totalPayable}
+                    initial={{ opacity: 0.6, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="text-4xl sm:text-5xl font-black font-heading text-slate-900 tabular-amount"
+                  >
+                    ₹{totalPayable.toFixed(2)}
+                  </motion.h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-3">What you owe others</p>
+                </Card>
+              </section>
+
+              {/* Actionable Alerts Combined */}
+              <div className="grid grid-cols-1 gap-8">
+                  {debts.length > 0 && (
+                      <section className="space-y-4">
+                          <h2 className="text-lg font-black font-heading text-slate-900 tracking-tight flex items-center gap-2">
+                             <Activity className="w-4 h-4 text-red-500" /> Payables
+                          </h2>
+                          <div className="grid grid-cols-1 gap-4">
+                              {debts.map((debt, i) => (
+                                  <motion.div 
+                                      key={`debt-${i}`}
+                                      initial={{ opacity: 0, x: -16 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: i * 0.08, type: "spring", stiffness: 400, damping: 28 }}
+                                  >
+                                    <Card variant="interactive" className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-red-100/40 bg-gradient-to-r from-red-50/20 to-white">
+                                      <div className="flex items-center gap-4 min-w-0">
+                                          <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center ring-1 ring-red-200/50 shrink-0">
+                                              <ArrowUpRight className="w-5 h-5 text-red-600" />
+                                          </div>
+                                          <div className="min-w-0">
+                                              <p className="text-sm font-semibold text-slate-900">
+                                                  Pay <span className="font-black text-red-600">{debt.toName}</span>
+                                                  <span className="text-slate-500 font-medium"> · {debt.groupName}</span>
+                                              </p>
+                                              <p className="text-xs text-slate-500 mt-1">
+                                                  <span className="font-black text-slate-900 tabular-amount text-base">₹{debt.amount}</span>
+                                              </p>
+                                          </div>
+                                      </div>
+                                      <Link href={`/dashboard/groups/${debt.groupId}`} className="shrink-0">
+                                          <Button size="sm" variant="secondary" className="rounded-xl h-11 px-6 w-full sm:w-auto border-red-100/50 text-xs">Open group</Button>
+                                      </Link>
+                                    </Card>
+                                  </motion.div>
+                              ))}
+                          </div>
+                      </section>
+                  )}
+
+                  {credits.length > 0 && (
+                      <section className="space-y-4">
+                          <h2 className="text-lg font-black font-heading text-slate-900 tracking-tight flex items-center gap-2">
+                             <Activity className="w-4 h-4 text-emerald-500" /> Receivables
+                          </h2>
+                          <div className="grid grid-cols-1 gap-4">
+                              {credits.map((credit, i) => (
+                                  <motion.div 
+                                      key={`credit-${i}`}
+                                      initial={{ opacity: 0, x: -16 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: i * 0.08, type: "spring", stiffness: 400, damping: 28 }}
+                                  >
+                                    <Card variant="interactive" className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-emerald-100/40 bg-gradient-to-r from-emerald-50/20 to-white">
+                                      <div className="flex items-center gap-4 min-w-0">
+                                          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center ring-1 ring-emerald-200/50 shrink-0">
+                                              <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
+                                          </div>
+                                          <div className="min-w-0">
+                                              <p className="text-sm font-semibold text-slate-900">
+                                                  Collect from <span className="font-black text-emerald-600">{credit.fromName}</span>
+                                                  <span className="text-slate-500 font-medium"> · {credit.groupName}</span>
+                                              </p>
+                                              <p className="text-xs text-slate-500 mt-1">
+                                                  <span className="font-black text-slate-900 tabular-amount text-base">₹{credit.amount}</span>
+                                              </p>
+                                          </div>
+                                      </div>
+                                      <Link href={`/dashboard/groups/${credit.groupId}`} className="shrink-0">
+                                          <Button size="sm" variant="secondary" className="rounded-xl h-11 px-6 w-full sm:w-auto border-emerald-100/50 text-xs">Open group</Button>
+                                      </Link>
+                                    </Card>
+                                  </motion.div>
+                              ))}
+                          </div>
+                      </section>
+                  )}
               </div>
            </div>
-        </aside>
 
-        {/* Main Content Area */}
-        <main className="flex-1 w-full space-y-6">
-           <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
-                 <h2 className="text-2xl font-bold text-slate-900">Recent Group Activity</h2>
-                 <span className="bg-white border border-slate-200 text-slate-600 px-3 py-1 rounded-full text-sm font-bold shadow-sm">{groups.length}</span>
-              </div>
-              <Link href="/dashboard/transactions" className="text-sm font-bold text-slate-500 flex items-center hover:text-slate-900">
-                 Sort by: <span className="text-slate-900 ml-1">Latest</span>
-              </Link>
+           {/* Sidebar: Recent Pulse */}
+           <div className="lg:col-span-1 space-y-8">
+              <RecentActivityFeed transactions={recentExpenses} loading={loading} />
            </div>
+        </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-             {groups.map((val: any, idx: number) => {
-                const c = colors[idx % colors.length];
-                // Finding arbitrary total debts for that group logic mapping (using general debts length to pretend numbers if zero)
-                const mockDebt = debts.find(d => d.groupId === val._id)?.amount || (100 * (idx + 1));
-                const participantsCount = val.members?.length || 2;
-                
-                return (
-                 <Link href={`/dashboard/groups/${val._id}`} key={val._id} className={`block p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer ${c.bg}`}>
-                   <div className="flex justify-between items-start mb-6">
-                      <div className="bg-white/50 text-slate-800 text-xs font-bold px-3 py-1 rounded-full backdrop-blur-sm shadow-sm ring-1 ring-white/40">
-                         {new Date(val.updatedAt || new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric'})}
+        {/* Groups List */}
+        <section className="space-y-5">
+          <h2 className="text-lg font-black font-heading text-slate-900 tracking-tight">Your groups</h2>
+          
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="surface-card h-44 rounded-[1.75rem] animate-pulse bg-slate-100/80 border-slate-200/80" />
+              ))}
+            </div>
+          ) : groups.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {groups.map((group: any) => (
+                <Link key={group._id} href={`/dashboard/groups/${group._id}`}>
+                  <motion.div 
+                    whileHover={{ y: -4 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 22 }}
+                  >
+                    <Card variant="interactive" className="p-6 h-full flex flex-col justify-between min-h-[11rem] group cursor-pointer">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="w-12 h-12 rounded-2xl primary-gradient flex items-center justify-center shadow-md shadow-primary/20 ring-2 ring-white/50">
+                        <Users className="w-6 h-6 text-white" />
                       </div>
-                      <div className="w-8 h-8 bg-white/50 rounded-full flex items-center justify-center backdrop-blur-sm">
-                         <Tag className={`w-4 h-4 ${c.text}`} />
-                      </div>
-                   </div>
-
-                   <div className="space-y-1 mb-6">
-                      <p className="text-slate-600 font-semibold text-sm">{val.creator?.name || 'Group Admin'}</p>
-                      <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-tight">{val.name}</h3>
-                   </div>
-
-                   <div className="flex flex-wrap gap-2 mb-8">
-                     <span className="text-[11px] font-bold bg-white/50 px-3 py-1.5 rounded-full text-slate-700 ring-1 ring-white/40">Active</span>
-                     <span className="text-[11px] font-bold bg-white/50 px-3 py-1.5 rounded-full text-slate-700 ring-1 ring-white/40">{participantsCount} Members</span>
-                     <span className="text-[11px] font-bold bg-white/50 px-3 py-1.5 rounded-full text-slate-700 ring-1 ring-white/40">Split</span>
-                   </div>
-
-                   <div className="flex items-end justify-between pt-4 border-t border-slate-900/10">
-                      <div>
-                         <p className="text-lg font-black text-slate-900 leading-none">₹{mockDebt.toLocaleString()}</p>
-                         <p className="text-slate-500 text-[11px] font-semibold mt-1 uppercase tracking-wide">Avg Spent</p>
-                      </div>
-                      <button className="bg-[#111111] hover:bg-black text-white px-5 py-2.5 rounded-full text-xs font-bold transition-transform hover:scale-105">
-                         Details
-                      </button>
-                   </div>
-                 </Link>
-                );
-             })}
-           </div>
-        </main>
-
-      </div>
+                      <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                    <div className="mt-5">
+                      <h3 className="text-lg font-black font-heading text-slate-900 mb-1 tracking-tight">{group.name}</h3>
+                      <Badge tone="neutral">{group.members?.length ?? 0} members</Badge>
+                    </div>
+                    </Card>
+                  </motion.div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <Card className="p-16 sm:p-20 text-center border-dashed border-2 border-slate-200/80 bg-slate-50/30">
+              <Users className="w-14 h-14 text-slate-400 mx-auto mb-5" />
+              <h3 className="text-xl font-black font-heading text-slate-900 mb-2">No groups yet</h3>
+              <p className="text-slate-600 mb-8 max-w-sm mx-auto font-medium">Spin up a workspace for rent, trips, or projects — everyone sees the same ledger.</p>
+              <Button onClick={() => setShowCreate(true)} variant="secondary" className="rounded-xl">Create first group</Button>
+            </Card>
+          )}
+        </section>
+      </main>
 
       {/* Create Group Modal */}
       {showCreate && (
-        <div className="modal-backdrop z-50 fixed inset-0 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white max-w-md w-full p-8 rounded-[2rem] shadow-xl transform transition-all duration-300">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">New Group</h2>
+        <div className="modal-backdrop z-50">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 380, damping: 28 }}
+            className="modal-panel max-w-md bg-white p-8 rounded-[2rem] shadow-xl"
+          >
+            <h2 className="text-2xl font-black font-heading text-slate-900 mb-6 tracking-tight">Create group</h2>
             <form onSubmit={handleCreateGroup} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase mx-1">Name</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Group Name</label>
                 <Input 
-                  placeholder="E.g. Travel, Dinner, etc." 
+                  placeholder="Trip to Goa, Rent, etc." 
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
-                  required 
                   autoFocus
-                  className="rounded-xl bg-slate-100 border-transparent focus:bg-white text-slate-800 placeholder:text-slate-400"
+                  required
                 />
               </div>
-              <div className="flex gap-4 pt-6">
-                <Button type="button" variant="secondary" onClick={() => setShowCreate(false)} className="flex-1 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200">
-                    Cancel
-                </Button>
-                <Button type="submit" disabled={creatingGroup} className="flex-1 rounded-xl bg-[#4FC0ED] text-black hover:bg-[#3FAEE0]">
-                  {creatingGroup ? "Save..." : "Save"}
-                </Button>
+              <div className="flex gap-4 pt-4">
+                <Button type="button" variant="secondary" onClick={() => setShowCreate(false)} className="flex-1" disabled={creatingGroup}>Cancel</Button>
+                <Button type="submit" className="flex-1" disabled={creatingGroup}>{creatingGroup ? "Creating…" : "Create Group"}</Button>
               </div>
             </form>
-          </div>
+          </motion.div>
         </div>
       )}
     </div>

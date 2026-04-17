@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Expense from "@/models/Expense";
@@ -13,14 +14,14 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: groupId } = await params;
   try {
     await dbConnect();
-    const { id: groupId } = await params;
 
     const [categoryTotals, monthlyTrend, perUserContribution] = await Promise.all([
       // 1. Total spend by category
       Expense.aggregate([
-        { $match: { groupId: { $toString: groupId } } },
+        { $match: { groupId: new mongoose.Types.ObjectId(groupId) } },
         {
           $group: {
             _id: { $ifNull: ["$category", "General"] },
@@ -36,7 +37,7 @@ export async function GET(
       Expense.aggregate([
         {
           $match: {
-            groupId: { $toString: groupId },
+            groupId: new mongoose.Types.ObjectId(groupId),
             date: { $gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000) },
           },
         },
@@ -64,7 +65,7 @@ export async function GET(
 
       // 3. Per-user contribution (paidBy totals)
       Expense.aggregate([
-        { $match: { groupId: { $toString: groupId } } },
+        { $match: { groupId: new mongoose.Types.ObjectId(groupId) } },
         {
           $group: {
             _id: "$paidBy",
@@ -99,6 +100,7 @@ export async function GET(
       { status: 200 }
     );
   } catch (error: any) {
+    console.error(`[Analytics API Error] Group: ${groupId}`, error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
